@@ -1,0 +1,16 @@
+; KGB Zombie Escape first release-candidate defaults.
+; This core uses stock CS assets. Install licensed ze_* maps and FastDL separately.
+; ReGameDLL flags: b blocks the no-opponent check; f blocks team elimination.
+mp_round_infinite "bf"
+kgb_ze_enabled 1
+kgb_ze_min_players 2
+kgb_ze_infection_delay "15.0"
+kgb_ze_zombie_ratio "0.20"
+kgb_ze_zombie_health 5000
+kgb_ze_zombie_speed "310.0"
+kgb_ze_zombie_gravity "0.80"
+kgb_ze_human_health 100
+kgb_ze_human_armor 50
+kgb_ze_respawn_delay "3.0"
+kgb_ze_display_name "KGB Zombie Escape"
+kgb_ze_chat_prefix "[KGB ZE]"

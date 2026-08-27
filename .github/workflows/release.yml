@@ -1,0 +1,109 @@
+name: Build and Release
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "v0.*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  compatibility:
+    name: Compile AMXX ${{ matrix.amxx-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        amxx-version:
+          - "1.8.2"
+          - "1.9"
+          - "1.10"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check source capabilities
+        env:
+          VERSION_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+        run: ./scripts/check-source-capabilities.sh
+
+      - name: Compile plugin
+        env:
+          AMXX_VERSION: ${{ matrix.amxx-version }}
+        run: ./scripts/build.sh
+
+  build:
+    name: Build release assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: compatibility
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Compile release plugin
+        env:
+          AMXX_VERSION: "1.8.2"
+        run: ./scripts/build.sh
+
+      - name: Verify release checksum
+        run: |
+          cd compiled
+          sha256sum --check kgb_zombie_escape.amxx.sha256
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: kgb-zombie-escape-core-${{ github.sha }}
+          path: |
+            compiled/kgb_zombie_escape.amxx
+            compiled/kgb_zombie_escape.amxx.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Create prerelease
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v0.')
+    permissions:
+      actions: read
+      contents: write
+
+    steps:
+      - name: Download verified release assets
+        uses: actions/download-artifact@v5
+        with:
+          name: kgb-zombie-escape-core-${{ github.sha }}
+          path: release-assets
+
+      - name: Verify downloaded assets
+        run: |
+          cd release-assets
+          sha256sum --check kgb_zombie_escape.amxx.sha256
+
+      - name: Create GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            release-assets/kgb_zombie_escape.amxx \
+            release-assets/kgb_zombie_escape.amxx.sha256 \
+            --prerelease \
+            --verify-tag \
+            --title "KGB Zombie Escape Core $GITHUB_REF_NAME" \
+            --generate-notes
