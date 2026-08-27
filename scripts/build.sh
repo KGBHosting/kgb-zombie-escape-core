@@ -7,6 +7,9 @@ BUILD_COMPONENTS="${BUILD_COMPONENTS:-core}"
 # Pinned Debian image used by the sibling KGB AMXX repositories. Override only
 # for local diagnosis; release builds always use this digest.
 DOCKER_IMAGE="${DOCKER_IMAGE:-debian@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171}"
+REAPI_VERSION="${REAPI_VERSION:-5.29.0.358}"
+REAPI_URL="${REAPI_URL:-https://github.com/rehlds/ReAPI/releases/download/5.29.0.358/reapi-bin-5.29.0.358.zip}"
+REAPI_SHA256="${REAPI_SHA256:-f33a7435540bea8706db3fa948e51a85b511f5b18c383b97402a204dc5419195}"
 
 case "$AMXX_VERSION" in
 	1.8 | 1.8.2)
@@ -34,6 +37,11 @@ AMXX_CACHE_DIR="$ROOT_DIR/.ci/amxx/$AMXX_VERSION"
 AMXX_ARCHIVE="$ROOT_DIR/.ci/downloads/$AMXX_VERSION/$AMXX_ARCHIVE_NAME"
 DEFAULT_AMXX_DIR="$AMXX_CACHE_DIR/addons/amxmodx/scripting"
 AMXX_DIR="${AMXX_DIR:-$DEFAULT_AMXX_DIR}"
+REAPI_ARCHIVE_NAME="${REAPI_URL##*/}"
+REAPI_CACHE_DIR="$ROOT_DIR/.ci/reapi/$REAPI_VERSION"
+REAPI_ARCHIVE="$ROOT_DIR/.ci/downloads/reapi/$REAPI_ARCHIVE_NAME"
+DEFAULT_REAPI_INCLUDE_DIR="$REAPI_CACHE_DIR/addons/amxmodx/scripting/include"
+REAPI_INCLUDE_DIR="${REAPI_INCLUDE_DIR:-$DEFAULT_REAPI_INCLUDE_DIR}"
 
 hash_file() {
 	if command -v sha256sum >/dev/null 2>&1; then
@@ -105,6 +113,50 @@ ensure_amxx() {
 	fi
 }
 
+verify_reapi_archive() {
+	test -f "$REAPI_ARCHIVE" && test "$(hash_file "$REAPI_ARCHIVE")" = "$REAPI_SHA256"
+}
+
+ensure_reapi_include() {
+	if test -f "$REAPI_INCLUDE_DIR/reapi.inc" \
+		&& test -f "$REAPI_INCLUDE_DIR/reapi_gamedll.inc" \
+		&& test -f "$REAPI_INCLUDE_DIR/reapi_gamedll_const.inc"; then
+		return
+	fi
+
+	if test "$REAPI_INCLUDE_DIR" != "$DEFAULT_REAPI_INCLUDE_DIR"; then
+		printf 'REAPI_INCLUDE_DIR is missing required include files: %s\n' "$REAPI_INCLUDE_DIR" >&2
+		exit 1
+	fi
+
+	mkdir -p "$(dirname "$REAPI_ARCHIVE")"
+	if ! verify_reapi_archive; then
+		partial_reapi_archive="$REAPI_ARCHIVE.part"
+		rm -f "$partial_reapi_archive"
+		curl --fail --location --show-error --silent "$REAPI_URL" --output "$partial_reapi_archive"
+		if test "$(hash_file "$partial_reapi_archive")" != "$REAPI_SHA256"; then
+			rm -f "$partial_reapi_archive"
+			printf 'ReAPI archive checksum did not match expected SHA-256.\n' >&2
+			exit 1
+		fi
+		mv "$partial_reapi_archive" "$REAPI_ARCHIVE"
+	fi
+
+	if ! verify_reapi_archive; then
+		printf 'ReAPI archive checksum did not match expected SHA-256.\n' >&2
+		exit 1
+	fi
+
+	rm -rf "$REAPI_CACHE_DIR"
+	mkdir -p "$REAPI_CACHE_DIR"
+	unzip -q "$REAPI_ARCHIVE" -d "$REAPI_CACHE_DIR"
+
+	if ! test -f "$REAPI_INCLUDE_DIR/reapi.inc"; then
+		printf 'ReAPI include was not found after extraction.\n' >&2
+		exit 1
+	fi
+}
+
 component_source() {
 	case "$1" in
 	core) printf '%s\n' 'src/kgb_zombie_escape.sma' ;;
@@ -122,6 +174,7 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 ensure_amxx
+ensure_reapi_include
 mkdir -p "$ROOT_DIR/compiled"
 printf 'Compiling with AMX Mod X %s\n' "$AMXX_VERSION"
 
@@ -142,10 +195,11 @@ for component in $BUILD_COMPONENTS; do
 		--read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m \
 		-v "$ROOT_DIR:/work" \
 		-v "$AMXX_DIR:/amxx:ro" \
+		-v "$REAPI_INCLUDE_DIR:/reapi/include:ro" \
 		-e LD_LIBRARY_PATH=/amxx \
 		-w /work \
 		"$DOCKER_IMAGE" \
-		/amxx/amxxpc "$source_path" -i/amxx/include -o"$artifact_path" \
+		/amxx/amxxpc "$source_path" -i/amxx/include -i/reapi/include -o"$artifact_path" \
 		2>&1 | tee "$compile_log" || compile_status=$?
 
 	# amxxpc releases can return zero after reporting compilation errors, so the
