@@ -30,7 +30,7 @@
 #include <hamsandwich>
 
 #define PLUGIN_NAME "KGB Zombie Escape Core"
-#define PLUGIN_VERSION "0.1.0"
+#define PLUGIN_VERSION "0.1.1"
 #define PLUGIN_AUTHOR "KGB Hosting"
 
 #define TASK_BEGIN_INFECTION 71200

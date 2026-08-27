@@ -19,7 +19,7 @@ test -s "$SOURCE"
 test -s "$CONFIG"
 test -s "$LICENSE_FILE"
 require_string "$SOURCE" 'SPDX-License-Identifier: GPL-3.0-or-later'
-require_string "$SOURCE" '#define PLUGIN_VERSION "0.1.0"'
+require_string "$SOURCE" '#define PLUGIN_VERSION "0.1.1"'
 require_string "$SOURCE" 'get_cvar_pointer("mp_round_infinite")'
 require_string "$SOURCE" 'contain(round_infinite, "b") == -1 || contain(round_infinite, "f") == -1'
 require_string "$SOURCE" 'if (!g_round_active || g_infection_started || !get_pcvar_num(g_cvar_enabled))'

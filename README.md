@@ -5,7 +5,7 @@ ReGameDLL-backed Counter-Strike 1.6 Zombie Escape release candidate. It is not
 restricted to KGB Hosting customers: operators may run, study, modify, and
 redistribute it under GPL-3.0-or-later.
 
-Version `0.1.0` implements the stock-assets gameplay core only:
+Version `0.1.1` implements the stock-assets gameplay core only:
 
 - delayed random initial infection with a configurable zombie ratio;
 - knife-hit infection and CT/T role assignment;
@@ -30,6 +30,9 @@ properly licensed `ze_*` map.
 
 The plugin fails closed when `mp_round_infinite` is unavailable or does not
 contain both required flags.
+
+`v0.1.1` supersedes the `v0.1.0` prerelease. Operators should not deploy
+`v0.1.0`; the Panel catalog pins the newer immutable source and release asset.
 
 Primary references:
 
