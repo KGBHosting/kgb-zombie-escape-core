@@ -31,17 +31,20 @@
 #include <reapi>
 
 #define PLUGIN_NAME "KGB Zombie Escape Core"
-#define PLUGIN_VERSION "0.1.2"
+#define PLUGIN_VERSION "0.1.3"
 #define PLUGIN_AUTHOR "KGB Hosting"
 
 #define TASK_BEGIN_INFECTION 71200
 #define TASK_RESPAWN_BASE 71300
+#define TASK_RECONCILE_BASE 71400
 
 new g_max_players
 new bool:g_round_active
 new bool:g_infection_started
 new bool:g_round_ending
 new bool:g_is_zombie[33]
+new g_round_serial
+new g_reconcile_task_id
 
 new g_cvar_enabled
 new g_cvar_min_players
@@ -115,19 +118,19 @@ public client_disconnect(id)
 {
     remove_task(TASK_RESPAWN_BASE + id)
     g_is_zombie[id] = false
-    check_remaining_humans()
+    schedule_role_reconciliation()
 }
 
 public on_new_round()
 {
-    remove_task(TASK_BEGIN_INFECTION)
+    g_round_serial++
+    cancel_round_tasks()
     g_round_active = false
     g_infection_started = false
     g_round_ending = false
 
     for (new id = 1; id <= g_max_players; id++)
     {
-        remove_task(TASK_RESPAWN_BASE + id)
         g_is_zombie[id] = false
     }
 
@@ -229,6 +232,32 @@ public on_round_end()
     g_round_active = false
     g_infection_started = false
     g_round_ending = false
+}
+
+public reconcile_roles_deferred(task_id)
+{
+    new scheduled_round_serial = task_id - TASK_RECONCILE_BASE
+    if (task_id == g_reconcile_task_id)
+    {
+        g_reconcile_task_id = 0
+    }
+
+    if (scheduled_round_serial != g_round_serial || !g_round_active || !g_infection_started || g_round_ending)
+    {
+        return
+    }
+
+    new humans, zombies
+    count_roles(humans, zombies)
+
+    if (humans > 0 && zombies == 0)
+    {
+        end_round_for_humans()
+    }
+    else if (humans == 0 && zombies > 0)
+    {
+        end_round_for_zombies()
+    }
 }
 
 public on_player_spawn_post(id)
@@ -463,17 +492,57 @@ stock check_remaining_humans()
 
     if (humans == 0 && zombies > 0)
     {
-        g_round_ending = true
-        g_round_active = false
-        cancel_round_tasks()
-        announce("All humans were infected. Zombies win the round.")
-        rg_round_end(1.0, WINSTATUS_TERRORISTS, ROUND_TERRORISTS_WIN)
+        end_round_for_zombies()
     }
+}
+
+stock schedule_role_reconciliation()
+{
+    if (!g_round_active || !g_infection_started || g_round_ending || g_reconcile_task_id != 0)
+    {
+        return
+    }
+
+    g_reconcile_task_id = TASK_RECONCILE_BASE + g_round_serial
+    set_task(0.1, "reconcile_roles_deferred", g_reconcile_task_id)
+}
+
+stock end_round_for_humans()
+{
+    if (g_round_ending)
+    {
+        return
+    }
+
+    g_round_ending = true
+    g_round_active = false
+    cancel_round_tasks()
+    announce("All zombies left. Humans win the round.")
+    rg_round_end(1.0, WINSTATUS_CTS, ROUND_CTS_WIN)
+}
+
+stock end_round_for_zombies()
+{
+    if (g_round_ending)
+    {
+        return
+    }
+
+    g_round_ending = true
+    g_round_active = false
+    cancel_round_tasks()
+    announce("All humans were infected. Zombies win the round.")
+    rg_round_end(1.0, WINSTATUS_TERRORISTS, ROUND_TERRORISTS_WIN)
 }
 
 stock cancel_round_tasks()
 {
     remove_task(TASK_BEGIN_INFECTION)
+    if (g_reconcile_task_id != 0)
+    {
+        remove_task(g_reconcile_task_id)
+        g_reconcile_task_id = 0
+    }
 
     for (new id = 1; id <= g_max_players; id++)
     {
