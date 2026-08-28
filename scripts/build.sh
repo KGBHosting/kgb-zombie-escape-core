@@ -199,7 +199,7 @@ for component in $BUILD_COMPONENTS; do
 		-e LD_LIBRARY_PATH=/amxx \
 		-w /work \
 		"$DOCKER_IMAGE" \
-		/amxx/amxxpc "$source_path" -i/amxx/include -i/reapi/include -o"$artifact_path" \
+		/amxx/amxxpc "$source_path" -d0 -i/amxx/include -i/reapi/include -o"$artifact_path" \
 		2>&1 | tee "$compile_log" || compile_status=$?
 
 	# amxxpc releases can return zero after reporting compilation errors, so the
